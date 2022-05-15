@@ -32,7 +32,7 @@ class Fighter(pygame.sprite.Sprite):
         self.rect.x += self.dx
         self.rect.y += self.dy
 
-        #화면 밖으로 나가는 거 방지 (y축 버그: 화면 밖으로 나가짐)
+        #화면 밖으로 나가는 거 방지 (y축 버그 수정)
         if self.rect.x < 0 or self.rect.x + self.rect.width > WINDOW_WIDTH:
             self.rect.x -= self.dx
         
@@ -168,6 +168,26 @@ class Heal(pygame.sprite.Sprite):
         if self.rect.y > WINDOW_HEIGHT:
             return True
 
+# 보급(레이저) 아이템
+class Supply(pygame.sprite.Sprite):    
+    def __init__(self, xpos, ypos, speed):
+        super(Supply, self).__init__()
+        
+        self.image = pygame.image.load('supply.png')
+        self.rect = self.image.get_rect()
+        self.rect.x = xpos # 위치값
+        self.rect.y = ypos 
+        self.speed = speed
+
+    def update(self):
+        self.rect.y += self.speed
+
+    #화면 밖으로 나가는 것 체크
+    def out_of_screen(self):
+        if self.rect.y > WINDOW_HEIGHT:
+            return True
+
+
 #글자 출력
 def draw_text(text, font, surface, x ,y, main_color):
     text_obj = font.render(text, True, main_color)
@@ -205,7 +225,7 @@ def game_loop():
     bossmissiles = pygame.sprite.Group() # 보스 공격
     heals = pygame.sprite.Group() # 회복 아이템
     lazers = pygame.sprite.Group() # 레이저(스킬) 
-
+    supplys = pygame.sprite.Group() # 레이저 아이템
     occur_prob = 30 # 확률적으로 얼만큼 나오게 할 것인가 (낮을수록 보스가 더 자주 공격함)
     shot_count = 0 # 점수
     count_life = 3 # 목숨
@@ -213,12 +233,10 @@ def game_loop():
     start_time = datetime.now() # 시작 시간
     missile_count = 40 # 미사일 개수 
     occur_prob_heal = 800 # 아이템 등장 확률 (높을수록 등장 확률 희박)
+    occur_prob_supply = 850 # 레이저 아이템 등장 확률
     re_fill = 3 # 재장전 카운트
     lazer_count = 5 # 사용가능 레이저 개수 
-    untouchable_mode = False 
-    untouchable_start = 0 
-
-
+    
     done = False
     
     while not done:
@@ -249,7 +267,7 @@ def game_loop():
                         lazer_count -= 1
                         lazer.launch()
                         lazers.add(lazer)
-                elif event.key == pygame.K_ESCAPE: # Esc를 누르면 게임 클리어
+                elif event.key == pygame.K_ESCAPE: # Esc를 누르면 게임 클리어 (마법의 키) 
                     done = True
                     game_clear(shot_count)
 
@@ -270,6 +288,7 @@ def game_loop():
         min_bossmissile_speed = 2 + int((100-boss_hp) / 50)
         max_bossmissile_speed = 2 + int((100-boss_hp) / 25)
         occur_of_heals = 1
+        occur_of_supplys = 1
 
         # 보스의 공격
         if random.randint(1, occur_prob) == 1:
@@ -283,6 +302,12 @@ def game_loop():
                 speed = 2
                 heal = Heal(random.randint(0, WINDOW_WIDTH - 30), 0, speed)
                 heals.add(heal)
+        # 레이저 아이템
+        if random.randint(1, occur_prob_supply) == 1:
+            for i in range(occur_of_supplys):
+                speed = 2
+                supply = Supply(random.randint(0, WINDOW_WIDTH - 30), 0, speed)
+                supplys.add(supply)
         
         # 텍스트 표시 (점수, 목숨, 남은 시간, 미사일 수, 보스 체력, 재장전, 레이저 수)
         draw_text('SCORE: {}'.format(shot_count),default_font, screen, 80, 20, YELLOW)
@@ -333,6 +358,12 @@ def game_loop():
             if heal:
                 heal.kill()
                 count_life += 1 # 먹으면 목숨 + 1
+                                
+        for supply in supplys: # 레이저 아이템 획득
+            supply = fighter.collide(supplys)
+            if supply:
+                supply.kill()
+                lazer_count += 1 # 먹으면 레이저 + 1
                 
         bossmissiles.update() # 보스 공격
         bossmissiles.draw(screen)
@@ -344,6 +375,8 @@ def game_loop():
         boss.draw(screen)
         heals.update() # 회복 아이템
         heals.draw(screen)
+        supplys.update() # 레이저 아이템
+        supplys.draw(screen)
         lazers.update() # 레이저
         lazers.draw(screen)
         pygame.display.flip()
